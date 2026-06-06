@@ -1,10 +1,12 @@
 export type Half = 'away' | 'home'
+export type PlayCategory = 'Out' | 'Hit' | 'Walk' | 'Error' | 'Runner Out / Weird Play' | 'Other'
 
 export interface Play {
   id: string
   inning: number
   half: Half
   batter: string
+  category?: PlayCategory
   result: string
   runs: number
   outs: number

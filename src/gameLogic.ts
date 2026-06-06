@@ -1,4 +1,4 @@
-import { GameSetup, GameState, Play, Half } from './types'
+import { GameSetup, GameState, Play } from './types'
 
 const STORAGE_KEY = 'stickbook_current'
 const HISTORY_KEY = 'stickbook_history'
@@ -15,6 +15,71 @@ export function initGame(setup: GameSetup): GameState {
     batterIndex: { away: 0, home: 0 },
     plays: [],
     completed: false,
+  }
+}
+
+export function normalizePlayers(raw: string): string[] {
+  return raw
+    .split('\n')
+    .map((name) => name.trim())
+    .filter(Boolean)
+}
+
+export function getBatterName(state: GameState): string {
+  const batting = state.half === 'away' ? 'away' : 'home'
+  const players = batting === 'away' ? state.setup.awayPlayers : state.setup.homePlayers
+  return players[state.batterIndex[batting]] || 'Unknown'
+}
+
+export function getBaseOccupancyCount(state: GameState): number {
+  return [state.bases.first, state.bases.second, state.bases.third].filter(Boolean).length
+}
+
+export function getDefaultPlayState(
+  category: string,
+  result: string,
+  state: GameState,
+): { runs: number; outs: number; basesAfter: { first: string | null; second: string | null; third: string | null } } {
+  const batter = getBatterName(state)
+  const occupied = getBaseOccupancyCount(state)
+  const emptyBases = { first: null, second: null, third: null }
+
+  switch (`${category}:${result}`) {
+    case 'Out:Groundout':
+    case 'Out:Flyout':
+    case 'Out:Lineout':
+    case 'Out:Popout':
+    case 'Out:Strikeout':
+    case 'Out:Sacrifice':
+      return { runs: 0, outs: 1, basesAfter: { ...state.bases } }
+    case 'Hit:Single':
+      return { runs: 0, outs: 0, basesAfter: { first: batter, second: state.bases.second, third: state.bases.third } }
+    case 'Hit:Double':
+      return { runs: 0, outs: 0, basesAfter: { first: null, second: batter, third: state.bases.third } }
+    case 'Hit:Triple':
+      return { runs: 0, outs: 0, basesAfter: { first: null, second: null, third: batter } }
+    case 'Hit:Home Run':
+      return { runs: 1 + occupied, outs: 0, basesAfter: emptyBases }
+    case 'Walk:Walk':
+    case 'Walk:Intentional Walk':
+      return { runs: 0, outs: 0, basesAfter: { first: batter, second: state.bases.second, third: state.bases.third } }
+    case 'Error:Reached on Error':
+    case 'Error:Throwing Error':
+    case 'Error:Fielding Error':
+    case 'Error:Dropped Ball':
+      return { runs: 0, outs: 0, basesAfter: { first: batter, second: state.bases.second, third: state.bases.third } }
+    case 'Runner Out / Weird Play:Fielder’s Choice':
+      return { runs: 0, outs: 1, basesAfter: { first: batter, second: state.bases.second, third: state.bases.third } }
+    case 'Runner Out / Weird Play:Tagged Out Advancing':
+      return { runs: 0, outs: 1, basesAfter: { ...state.bases } }
+    case 'Runner Out / Weird Play:Double Play':
+      return { runs: 0, outs: 2, basesAfter: { ...state.bases } }
+    case 'Runner Out / Weird Play:Runner Interference':
+      return { runs: 0, outs: 1, basesAfter: { ...state.bases } }
+    case 'Runner Out / Weird Play:Other Weird Play':
+      return { runs: 0, outs: 0, basesAfter: { ...state.bases } }
+    default:
+      return { runs: 0, outs: 0, basesAfter: { ...state.bases } }
   }
 }
 
@@ -69,6 +134,7 @@ export function getCompleted(): GameState[] {
 }
 
 export function applyPlay(state: GameState, playInput: {
+  category?: string
   result: string
   runs: number
   outs: number
@@ -77,15 +143,14 @@ export function applyPlay(state: GameState, playInput: {
 }): GameState {
   const s: GameState = JSON.parse(JSON.stringify(state))
   const batting = s.half === 'away' ? 'away' : 'home'
-  const batterIdx = s.batterIndex[batting]
-  const batterName = s.setup[batting + 'Players' as keyof GameSetup] as string[]
-  const batter = batterName[batterIdx] || 'Unknown'
+  const batter = getBatterName(s)
 
   const play: Play = {
-    id: String(Date.now()),
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     inning: s.inning,
     half: s.half,
     batter,
+    category: playInput.category,
     result: playInput.result,
     runs: playInput.runs,
     outs: playInput.outs,
@@ -109,35 +174,44 @@ export function applyPlay(state: GameState, playInput: {
   s.plays.push(play)
 
   // advance batter index
-  s.batterIndex[batting] = (s.batterIndex[batting] + 1) % ((s.setup as any)[batting + 'Players'].length || 1)
+  const battingPlayers = batting === 'away' ? s.setup.awayPlayers : s.setup.homePlayers
+  s.batterIndex[batting] = (s.batterIndex[batting] + 1) % (battingPlayers.length || 1)
 
-  // check for end of half
-  if (s.outs >= s.setup.outsPerInning) {
-    s.outs = 0
-    s.bases = { first: null, second: null, third: null }
-    if (s.half === 'away') {
-      s.half = 'home'
-    } else {
-      s.half = 'away'
-      s.inning += 1
-    }
+  // walk-off if home takes the lead in the bottom of the final inning or later
+  if (s.half === 'home' && s.inning >= s.setup.innings && s.score.home > s.score.away) {
+    s.completed = true
+    return s
   }
 
-  // check regulation ending
-  const finalInnings = s.setup.innings
-  if (s.inning > finalInnings) {
-    // if home is ahead after away finishes final inning
-    if (s.half === 'home' && s.inning > finalInnings && s.score.home > s.score.away) {
+  if (s.outs < s.setup.outsPerInning) {
+    return s
+  }
+
+  s.outs = 0
+  s.bases = { first: null, second: null, third: null }
+
+  if (s.half === 'away') {
+    if (s.inning >= s.setup.innings && s.score.home > s.score.away) {
       s.completed = true
+      return s
     }
+    s.half = 'home'
+    return s
   }
 
-  // walk-off: if bottom and home takes the lead in final inning or later, end immediately
-  if (state.half === 'home' || s.half === 'home') {
-    if (s.inning >= finalInnings && s.score.home > s.score.away && state.half === 'home') {
-      s.completed = true
-    }
+  if (s.score.away > s.score.home) {
+    s.completed = true
+    return s
   }
+
+  if (s.inning >= s.setup.innings && s.score.home === s.score.away) {
+    s.inning += 1
+    s.half = 'away'
+    return s
+  }
+
+  s.inning += 1
+  s.half = 'away'
 
   return s
 }
