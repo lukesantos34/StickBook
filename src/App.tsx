@@ -347,13 +347,17 @@ function LiveGame({
     setBasesAfter({ first: null, second: null, third: null })
   }
 
+  function resetPlayDetails() {
+    setContactType(null)
+    setFieldLocation(null)
+  }
+
   function chooseCategory(nextCategory: PlayCategory) {
     setCategory(nextCategory)
     if (nextCategory === 'Other') {
       setResult('')
       setCustomResultInput('')
-      setContactType(null)
-      setFieldLocation(null)
+      resetPlayDetails()
       const defaults = { runs: 0, outs: 0, basesAfter: { ...game.bases } }
       setRuns(defaults.runs)
       setOuts(defaults.outs)
@@ -367,8 +371,7 @@ function LiveGame({
     setRuns(defaults.runs)
     setOuts(defaults.outs)
     setBasesAfter(defaults.basesAfter)
-    setContactType(null)
-    setFieldLocation(null)
+    resetPlayDetails()
     setNote('')
   }
 
@@ -379,8 +382,7 @@ function LiveGame({
     setRuns(defaults.runs)
     setOuts(defaults.outs)
     setBasesAfter(defaults.basesAfter)
-    setContactType(null)
-    setFieldLocation(null)
+    resetPlayDetails()
   }
 
   function save() {
@@ -408,6 +410,14 @@ function LiveGame({
     if (action === '1st') setBasesAfter({ first: batter, second: null, third: null })
     if (action === '2nd') setBasesAfter({ first: null, second: batter, third: null })
     if (action === '3rd') setBasesAfter({ first: null, second: null, third: batter })
+  }
+
+  function toggleContactType(value: string) {
+    setContactType((current) => (current === value ? null : value))
+  }
+
+  function toggleFieldLocation(value: string) {
+    setFieldLocation((current) => (current === value ? null : value))
   }
 
   return (
@@ -480,8 +490,8 @@ function LiveGame({
             baseOptions={baseOptions}
             contactType={contactType}
             fieldLocation={fieldLocation}
-            onContactTypeToggle={(value) => setContactType((current) => (current === value ? null : value))}
-            onFieldLocationToggle={(value) => setFieldLocation((current) => (current === value ? null : value))}
+            onContactTypeToggle={toggleContactType}
+            onFieldLocationToggle={toggleFieldLocation}
             onBack={() => {
               if (category === 'Other') {
                 setResult('')
@@ -551,6 +561,8 @@ function ConfirmPlayPanel({
   onCancel,
   onQuickBases,
   onBaseChange,
+  onContactTypeToggle,
+  onFieldLocationToggle,
   onRunsDelta,
   onOutsDelta,
   onNoteChange,
@@ -614,12 +626,14 @@ function ConfirmPlayPanel({
       <div className="detail-groups">
         <div>
           <div className="section-title detail-title">Hit / Contact</div>
+          <div className="detail-summary">Selected: {contactType ?? 'None'}</div>
           <div className="button-grid detail-grid">
             {CONTACT_TYPES.map((item) => (
               <button
                 key={item}
-                className={`console-btn ${contactType === item ? 'selected-btn' : ''}`}
+                className={`console-btn detail-button ${contactType === item ? 'selected' : ''}`}
                 onClick={() => onContactTypeToggle(item)}
+                aria-pressed={contactType === item}
                 type="button"
               >
                 {item}
@@ -630,12 +644,14 @@ function ConfirmPlayPanel({
 
         <div>
           <div className="section-title detail-title">Field / Location</div>
+          <div className="detail-summary">Selected: {fieldLocation ?? 'None'}</div>
           <div className="button-grid detail-grid">
             {FIELD_LOCATIONS.map((item) => (
               <button
                 key={item}
-                className={`console-btn ${fieldLocation === item ? 'selected-btn' : ''}`}
+                className={`console-btn detail-button ${fieldLocation === item ? 'selected' : ''}`}
                 onClick={() => onFieldLocationToggle(item)}
+                aria-pressed={fieldLocation === item}
                 type="button"
               >
                 {item}

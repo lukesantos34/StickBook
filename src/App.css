@@ -133,14 +133,27 @@ textarea { resize: vertical; }
   margin-bottom: 8px;
 }
 
+.detail-summary {
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .detail-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.selected-btn {
-  background: #dfefff;
-  border-color: #4b8fe2;
-  color: var(--accent-dark);
+.detail-button.selected,
+.detail-button[aria-pressed='true'] {
+  background: #0b63d6;
+  border-color: #0b63d6;
+  color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(11, 99, 214, 0.18);
+}
+
+.detail-button.selected::before {
+  content: '✓ ';
 }
 
 .action-card { padding: 10px; }
