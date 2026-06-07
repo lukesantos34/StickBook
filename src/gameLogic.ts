@@ -135,6 +135,8 @@ export function getCompleted(): GameState[] {
 
 export function applyPlay(state: GameState, playInput: {
   category?: string
+  contactType?: string
+  fieldLocation?: string
   result: string
   runs: number
   outs: number
@@ -151,6 +153,8 @@ export function applyPlay(state: GameState, playInput: {
     half: s.half,
     batter,
     category: playInput.category,
+    contactType: playInput.contactType,
+    fieldLocation: playInput.fieldLocation,
     result: playInput.result,
     runs: playInput.runs,
     outs: playInput.outs,

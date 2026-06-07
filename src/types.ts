@@ -7,6 +7,8 @@ export interface Play {
   half: Half
   batter: string
   category?: PlayCategory
+  contactType?: string
+  fieldLocation?: string
   result: string
   runs: number
   outs: number

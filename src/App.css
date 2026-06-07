@@ -122,6 +122,27 @@ textarea { resize: vertical; }
   gap: 10px;
 }
 
+.detail-groups {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.detail-title {
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.detail-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.selected-btn {
+  background: #dfefff;
+  border-color: #4b8fe2;
+  color: var(--accent-dark);
+}
+
 .action-card { padding: 10px; }
 .actions-row { align-items: stretch; }
 .control-card .secondary-btn { width: 100%; }

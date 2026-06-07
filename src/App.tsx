@@ -36,6 +36,17 @@ const PLAY_RESULTS: Record<Exclude<PlayCategory, 'Other'>, string[]> = {
 
 const BASE_OPTIONS = ['Empty', 'Current batter']
 
+const CONTACT_TYPES = ['Line', 'Ground', 'Fly', 'Pop']
+
+const FIELD_LOCATIONS = ['P', 'C', '1B', '2B', '3B', 'SS', 'Left', 'Center', 'Right']
+
+function formatPlayDescription(play: Pick<Play, 'result' | 'contactType' | 'fieldLocation'>) {
+  const details: string[] = []
+  if (play.contactType) details.push(play.contactType)
+  if (play.fieldLocation) details.push(details.length > 0 ? `to ${play.fieldLocation}` : play.fieldLocation)
+  return details.length > 0 ? `${play.result} — ${details.join(' ')}` : play.result
+}
+
 export default function App() {
   const [view, setView] = useState<View>('landing')
   const [game, setGame] = useState<GameState | null>(null)
@@ -78,6 +89,8 @@ export default function App() {
 
   function handleSavePlay(input: {
     category?: PlayCategory
+    contactType?: string
+    fieldLocation?: string
     result: string
     runs: number
     outs: number
@@ -196,8 +209,8 @@ function Landing({
 function Setup({ onCreate, onCancel }: { onCreate: (setup: GameSetup) => void; onCancel: () => void }) {
   const [title, setTitle] = useState('')
   const [location, setLocation] = useState('')
-  const [innings, setInnings] = useState('7')
-  const [outsPerInning, setOutsPerInning] = useState('3')
+  const [innings, setInnings] = useState('9')
+  const [outsPerInning, setOutsPerInning] = useState('2')
   const [awayTeam, setAwayTeam] = useState('Away')
   const [homeTeam, setHomeTeam] = useState('Home')
   const [awayPlayers, setAwayPlayers] = useState('')
@@ -286,6 +299,8 @@ function LiveGame({
   game: GameState
   onSavePlay: (input: {
     category?: PlayCategory
+    contactType?: string
+    fieldLocation?: string
     result: string
     runs: number
     outs: number
@@ -300,6 +315,8 @@ function LiveGame({
   const [category, setCategory] = useState<ConsoleCategory>(null)
   const [result, setResult] = useState('')
   const [customResultInput, setCustomResultInput] = useState('')
+  const [contactType, setContactType] = useState<string | null>(null)
+  const [fieldLocation, setFieldLocation] = useState<string | null>(null)
   const [runs, setRuns] = useState(0)
   const [outs, setOuts] = useState(0)
   const [note, setNote] = useState('')
@@ -322,6 +339,8 @@ function LiveGame({
     setCategory(null)
     setResult('')
     setCustomResultInput('')
+    setContactType(null)
+    setFieldLocation(null)
     setRuns(0)
     setOuts(0)
     setNote('')
@@ -333,6 +352,8 @@ function LiveGame({
     if (nextCategory === 'Other') {
       setResult('')
       setCustomResultInput('')
+      setContactType(null)
+      setFieldLocation(null)
       const defaults = { runs: 0, outs: 0, basesAfter: { ...game.bases } }
       setRuns(defaults.runs)
       setOuts(defaults.outs)
@@ -340,12 +361,14 @@ function LiveGame({
       return
     }
 
+    setResult('')
     const firstResult = PLAY_RESULTS[nextCategory as Exclude<PlayCategory, 'Other'>][0]
     const defaults = getDefaultPlayState(nextCategory, firstResult, game)
-    setResult(firstResult)
     setRuns(defaults.runs)
     setOuts(defaults.outs)
     setBasesAfter(defaults.basesAfter)
+    setContactType(null)
+    setFieldLocation(null)
     setNote('')
   }
 
@@ -356,6 +379,8 @@ function LiveGame({
     setRuns(defaults.runs)
     setOuts(defaults.outs)
     setBasesAfter(defaults.basesAfter)
+    setContactType(null)
+    setFieldLocation(null)
   }
 
   function save() {
@@ -363,6 +388,8 @@ function LiveGame({
     onSavePlay({
       category,
       result: result.trim(),
+      contactType: contactType ?? undefined,
+      fieldLocation: fieldLocation ?? undefined,
       runs: Number.isFinite(runs) ? runs : 0,
       outs: Number.isFinite(outs) ? outs : 0,
       basesAfter,
@@ -451,6 +478,10 @@ function LiveGame({
             battingPlayers={battingPlayers}
             currentBatter={batter}
             baseOptions={baseOptions}
+            contactType={contactType}
+            fieldLocation={fieldLocation}
+            onContactTypeToggle={(value) => setContactType((current) => (current === value ? null : value))}
+            onFieldLocationToggle={(value) => setFieldLocation((current) => (current === value ? null : value))}
             onBack={() => {
               if (category === 'Other') {
                 setResult('')
@@ -488,7 +519,7 @@ function LiveGame({
           {game.plays.slice().reverse().map((play: Play) => (
             <div key={play.id} className="play-item">
               <div className="play-title">
-                {play.inning}{play.half === 'away' ? 'T' : 'B'} • {play.batter} • {play.result}
+                {play.inning}{play.half === 'away' ? 'T' : 'B'} • {play.batter} • {formatPlayDescription(play)}
               </div>
               <div className="small">
                 {play.category ? `${play.category} • ` : ''}Runs: {play.runs} Outs: {play.outs} Score: {play.scoreAfter.away}-{play.scoreAfter.home}
@@ -514,6 +545,8 @@ function ConfirmPlayPanel({
   battingPlayers,
   currentBatter,
   baseOptions,
+  contactType,
+  fieldLocation,
   onBack,
   onCancel,
   onQuickBases,
@@ -533,10 +566,14 @@ function ConfirmPlayPanel({
   battingPlayers: string[]
   currentBatter: string
   baseOptions: string[]
+  contactType: string | null
+  fieldLocation: string | null
   onBack: () => void
   onCancel: () => void
   onQuickBases: (action: 'clear' | '1st' | '2nd' | '3rd') => void
   onBaseChange: (base: 'first' | 'second' | 'third', value: string) => void
+  onContactTypeToggle: (value: string) => void
+  onFieldLocationToggle: (value: string) => void
   onRunsDelta: (delta: number) => void
   onOutsDelta: (delta: number) => void
   onNoteChange: (value: string) => void
@@ -572,6 +609,40 @@ function ConfirmPlayPanel({
         <div><span className="summary-label">Batter</span><div className="summary-value">{currentBatter}</div></div>
         <div><span className="summary-label">Result</span><div className="summary-value">{result}</div></div>
         <div><span className="summary-label">Category</span><div className="summary-value">{category}</div></div>
+      </div>
+
+      <div className="detail-groups">
+        <div>
+          <div className="section-title detail-title">Hit / Contact</div>
+          <div className="button-grid detail-grid">
+            {CONTACT_TYPES.map((item) => (
+              <button
+                key={item}
+                className={`console-btn ${contactType === item ? 'selected-btn' : ''}`}
+                onClick={() => onContactTypeToggle(item)}
+                type="button"
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="section-title detail-title">Field / Location</div>
+          <div className="button-grid detail-grid">
+            {FIELD_LOCATIONS.map((item) => (
+              <button
+                key={item}
+                className={`console-btn ${fieldLocation === item ? 'selected-btn' : ''}`}
+                onClick={() => onFieldLocationToggle(item)}
+                type="button"
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="counter-row">
@@ -680,7 +751,7 @@ function Report({ game, onBack }: { game: GameState; onBack: () => void }) {
       if (play.category === 'Error' || play.result.includes('Error')) entry.errors += 1
       entry.outs += play.outs
       entry.runs += play.runs
-      entry.results.push(play.category ? `${play.category}: ${play.result}` : play.result)
+      entry.results.push(formatPlayDescription(play))
     }
 
     return summary
@@ -739,7 +810,7 @@ function Report({ game, onBack }: { game: GameState; onBack: () => void }) {
           {game.plays.map((play) => (
             <div key={play.id} className="play-item">
               <div className="play-title">
-                {play.inning}{play.half === 'away' ? 'T' : 'B'} • {play.batter} • {play.result}
+                {play.inning}{play.half === 'away' ? 'T' : 'B'} • {play.batter} • {formatPlayDescription(play)}
               </div>
               <div className="small">
                 {play.category ? `${play.category} • ` : ''}R:{play.runs} O:{play.outs} Score: {play.scoreAfter.away}-{play.scoreAfter.home}
